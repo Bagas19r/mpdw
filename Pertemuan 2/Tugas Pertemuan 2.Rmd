@@ -1,0 +1,100 @@
+---
+title: "Tugas Pertemuan 2"
+author: "Bagas"
+date: "2025-09-01"
+output: html_document
+---
+
+```{r}
+lokasi_pustaka_pribadi <- "~/R/libs"
+library(openxlsx, lib.loc = lokasi_pustaka_pribadi)
+library(dplyr)
+library(ggplot2)
+library(forecast)
+
+lokasi_file <- "C:/Users/AKU/Downloads/Data MPDWW.xlsx"
+data_lengkap <- read.xlsx(lokasi_file, sheet = "Data")
+names(data_lengkap) <- trimws(names(data_lengkap))
+
+# filter data khusus untuk bagian Saya (periode 361-540)
+data_bagas <- data_lengkap %>%
+  filter(Periode >= 361 & Periode <= 540)
+```
+
+```{r}
+# Mengubah data menjadi objek time series (ts)
+ts_bagas <- ts(data_bagas$CO2, start = c(31, 1), frequency = 12)
+
+
+# Membuat Plot data Asli
+autoplot(ts_bagas, ts.colour = 'dodgerblue4') +
+  ggtitle("Plot Data Time Series CO2 (Periode 361-540)") +
+  xlab("Tahun") +
+  ylab("Konsentrasi CO2") +
+  theme_bw()
+```
+
+## Pemulusan data
+
+```{r}
+# METODE 1: Simple Moving Average (SMA)
+sma_3 <- ma(ts_bagas, order = 3)
+
+# METODE 2: Double Moving Average (DMA)
+dma_3 <- ma(sma_3, order = 3)
+
+# METODE 3: Single Exponential Smoothing (SES)
+ses_model <- ses(ts_bagas, h = 12)
+
+# METODE 4: Double Exponential Smoothing (DES) / Holt's Method
+des_model_holt <- holt(ts_bagas, h = 12)
+
+# --- METODE 5: Holt-Winters Method ---
+hw_model_additive <- hw(ts_bagas, seasonal = "additive", h = 24)
+
+# Plotting semua hasil
+autoplot(ts_bagas, series = "Data Asli", ts.colour = 'black', size = 1) +
+  autolayer(fitted(ses_model), series = "SES") +
+  autolayer(fitted(des_model_holt), series = "DES (Holt)") +
+  autolayer(fitted(hw_model_additive), series = "Holt-Winters") +
+  ggtitle("Perbandingan Metode Pemulusan Eksponensial") +
+  xlab("Tahun") + ylab("Konsentrasi CO2") +
+  labs(colour = "Legenda") + theme_bw()
+```
+
+## tabel perbandingan
+
+```{r}
+hitung_semua_metrik <- function(data_asli, hasil_prediksi) {
+  indeks_valid <- !is.na(hasil_prediksi)
+  data_asli <- data_asli[indeks_valid]
+  hasil_prediksi <- hasil_prediksi[indeks_valid]
+  
+  # Hitung residuals (error)
+  residuals <- data_asli - hasil_prediksi
+  
+  # Hitung metrik
+  sse <- sum(residuals^2)
+  mse <- mean(residuals^2)
+  rmse <- sqrt(mse)
+  mape <- mean(abs(residuals / data_asli)) * 100
+  
+  return(c(SSE = sse, MSE = mse, RMSE = rmse, MAPE = mape))
+}
+
+# Mengumpulkan hasil dari setiap metode
+metrik_sma3 <- hitung_semua_metrik(ts_bagas, sma_3)
+metrik_dma3 <- hitung_semua_metrik(ts_bagas, dma_3)
+metrik_ses <- hitung_semua_metrik(ts_bagas, fitted(ses_model))
+metrik_des <- hitung_semua_metrik(ts_bagas, fitted(des_model_holt))
+metrik_hw <- hitung_semua_metrik(ts_bagas, fitted(hw_model_additive))
+
+# Membuat tabel perbandingan akhir
+tabel_perbandingan <- rbind(metrik_sma3, metrik_dma3, metrik_ses, metrik_des, metrik_hw)
+rownames(tabel_perbandingan) <- c("SMA (n=3)", "DMA (n=3)", "SES", "DES (Holt)", "Holt-Winters Additive")
+
+# Menampilkan tabel perbandingan
+print(round(tabel_perbandingan, 4))
+```
+
+Simpulan: Metode Holt-Winters Additive adalah model terbaik karena paling akurat dalam memodelkan data CO2 yang memiliki pola tren dan musiman, yang dibuktikan dengan nilai SSE, MSE, RMSE, dan MAPE yang paling rendah dibandingkan metode lainnya.
