@@ -1,0 +1,142 @@
+---
+title: "IPM Provinsi Maluku"
+author: "Bagas"
+date: "2025-09-04"
+output: html_document
+---
+
+## Library dan Baca data
+
+```{r}
+lokasi_pustaka_pribadi <- "~/R/libs"
+library(openxlsx, lib.loc = lokasi_pustaka_pribadi)
+library(lmtest)
+library(orcutt, lib.loc = lokasi_pustaka_pribadi)
+library(knitr)
+data_ipm <- read.xlsx("C:/Users/AKU/Documents/IPM Maluku.xlsx")
+data_ipm
+```
+
+## Buat model regresi linear sederhana
+
+```{r}
+model_awal <- lm(IPM ~ Tahun, data = data_ipm)
+summary(model_awal)
+```
+
+## Uji Durbin-Watson (DW)
+
+```{r}
+hasil_dw <- dwtest(model_awal)
+hasil_dw
+```
+
+## Menangani Autokorelasi
+## Metode 1: Prosedur Cochrane-Orcutt
+
+```{r}
+model_cochrane <- cochrane.orcutt(model_awal)
+model_cochrane
+```
+
+```{r}
+summary(model_cochrane)
+```
+
+## Metode 2: Prosedur Hildreth-Lu
+
+```{r}
+hildreth.lu <- function(rho, model){
+x <- model.matrix(model)[, -1]
+y <- model.response(model.frame(model))
+
+# Transformasi variabel X dan Y menggunakan nilai rho
+y_transformed <- y[-1] - rho * y[-length(y)]
+x_transformed <- x[-1] - rho * x[-length(x)]
+
+# Membuat model baru dengan data yang sudah ditransformasi
+return(lm(y_transformed ~ x_transformed))
+}
+
+# Cari rho terbaik dengan SSE terkecil
+rho_candidates <- seq(0.01, 0.99, by = 0.01)
+
+# Hitung SSE untuk setiap kandidat rho
+sse_values <- sapply(rho_candidates, function(r) {deviance(hildreth.lu(r, model_awal))})
+
+# Temukan rho dengan SSE terkecil
+best_rho <- rho_candidates[which.min(sse_values)]
+cat("Rho terbaik adalah:", best_rho, "\n")
+cat("SSE terkecil adalah:", min(sse_values), "\n")
+
+# Bangun model akhir Hildreth-Lu dengan rho terbaik
+model_hildreth <- hildreth.lu(best_rho, model_awal)
+
+# Ringkasan hasilnya
+summary(model_hildreth)
+```
+
+## Perbandingan
+
+```{r}
+metrik <- c(
+  "Nilai Rho (ρ) Terestimasi",
+  "Statistik DW (Setelah Koreksi)",
+  "P-value DW (Setelah Koreksi)",
+  "Koefisien Intersep",
+  "Koefisien Tahun",
+  "Adjusted R-squared"
+)
+
+cochrane_orcutt_hasil <- c(
+  0.3508499,
+  1.38388,
+  0.06045,
+  -884.215743,
+  0.472150,
+  0.9313
+)
+
+hildreth_lu_hasil <- c(
+  0.35,
+  1.3853,
+  0.06095,
+  -327.12467, 
+  0.47210,
+  0.9311
+)
+
+perbandingan_df <- data.frame(
+  "Metrik Perbandingan" = metrik,
+  "Hasil Cochrane-Orcutt" = format(round(cochrane_orcutt_hasil, 5), nsmall = 5, scientific = FALSE),
+  "Hasil Hildreth-Lu" = format(round(hildreth_lu_hasil, 5), nsmall = 5, scientific = FALSE),
+  stringsAsFactors = FALSE,
+  check.names = FALSE
+)
+
+kable(perbandingan_df, caption = "Tabel Perbandingan Akhir Hasil Runningan")
+```
+
+## Analisis
+Kedua Metode Berhasil Mengatasi Autokorelasi
+Ini adalah kesimpulan terpenting. P-value dari Uji Durbin-Watson untuk kedua model—0.06045 untuk Cochrane-Orcutt dan 0.06095 untuk Hildreth-Lu—keduanya lebih besar dari 0.05. Ini berarti pada tingkat signifikansi 5%, kita tidak memiliki cukup bukti untuk menyatakan adanya autokorelasi. Dengan kata lain, kedua metode telah berhasil membuat model Anda valid dan bebas dari masalah autokorelasi orde pertama.
+
+Hasil yang Sangat Konsisten
+Kedua metode menghasilkan temuan yang luar biasa mirip, yang memperkuat validitas hasil Anda:
+
+Nilai ρ: Keduanya menemukan bahwa tingkat autokorelasi dalam data Anda adalah sekitar 0.35.
+
+Koefisien Tahun: Pengaruh waktu terhadap IPM hampir identik di kedua model (0.472150 vs 0.47210).
+
+Kebaikan Model: Nilai Adjusted R-squared juga hampir sama (0.9313 vs 0.9311), menunjukkan kedua model memiliki kemampuan menjelaskan data yang setara.
+
+Perbandingan Akhir
+Tidak ada satu metode yang secara signifikan lebih unggul dari yang lain dalam kasus ini. Keduanya sama-sama efektif.
+
+Hildreth-Lu sedikit lebih baik dalam hal statistik DW (1.3853, sedikit lebih dekat ke 2).
+
+Cochrane-Orcutt sedikit lebih unggul dalam hal Adjusted R-squared (0.9313, sedikit lebih tinggi).
+Perbedaan ini sangat kecil dan dapat diabaikan dalam praktik.
+
+## Kesimpulan
+Masalah autokorelasi pada data IPM Provinsi Maluku berhasil ditangani menggunakan dua metode, Cochrane-Orcutt dan Hildreth-Lu. Kedua metode memberikan hasil yang sangat konsisten, mengindikasikan bahwa model akhir yang valid mengestimasi koefisien autokorelasi sebesar ~0.35. Karena kedua model valid dan memberikan hasil yang serupa, keduanya dapat diterima. Untuk kemudahan interpretasi, model Cochrane-Orcutt dapat dipilih karena koefisiennya disajikan dalam skala asli.
