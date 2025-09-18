@@ -1,0 +1,105 @@
+---
+title: "Tugas-Pertemuan-3"
+author: "Bagas"
+date: "2025-09-17"
+output: 
+  html_document:
+    theme: journal
+    toc: true
+    toc_float: true
+---
+
+## 1. Memuat dan Mempersiapkan Data
+
+```{r}
+lokasi_pustaka_pribadi <- "~/R/libs"
+library(readr)
+library(dplyr)
+library(dynlm, lib.loc = lokasi_pustaka_pribadi)
+library(MLmetrics, lib.loc = lokasi_pustaka_pribadi)
+library(kableExtra, lib.loc = lokasi_pustaka_pribadi)
+
+data <- read_csv("C:/Users/AKU/Downloads/NewDelhi_Air_quality.csv")
+head(data)
+
+# Mengubah kolom tanggal menjadi format Date
+data$Date <- as.Date(data$datetime)
+
+# Membuat objek time series (ts) untuk digunakan dalam dynlm
+data_ts <- ts(data, start = c(as.numeric(format(data$Date[1], "%Y")), as.numeric(format(data$Date[1], "%j"))))
+```
+
+## 2. Menetapkan Variabel dan Menerapkan Regresi Lag
+Kita akan membuat beberapa model untuk dibandingkan:
+1.  **Model 1**: Regresi linear sederhana tanpa lag.
+2.  **Model 2**: Model *Distributed Lag* (DL), di mana AQI dipengaruhi oleh PM25 hari ini dan kemarin.
+3.  **Model 3**: Model *Autoregressive Distributed Lag* (ARDL), di mana AQI dipengaruhi oleh PM25 hari ini dan nilai AQI itu sendiri dari hari kemarin.
+
+```{r}
+# Model 1: Regresi Sederhana (AQI ~ pm25)
+# Model ini sebagai dasar perbandingan
+model_1 <- dynlm(AQI ~ pm25, data = data_ts)
+summary(model_1)
+
+# Model 2: Distributed Lag (AQI ~ pm25 hari ini dan pm25 lag 1)
+# L(pm25, 1) berarti nilai pm25 dari satu periode waktu sebelumnya (kemarin)
+model_2 <- dynlm(AQI ~ pm25 + L(pm25, 1), data = data_ts)
+summary(model_2)
+
+# Model 3: Autoregressive Distributed Lag (AQI ~ pm25 dan AQI lag 1)
+# L(AQI, 1) berarti nilai AQI dari satu periode waktu sebelumnya (kemarin)
+model_3 <- dynlm(AQI ~ pm25 + L(AQI, 1), data = data_ts)
+summary(model_3)
+
+# Hitung MAPE untuk setiap model
+mape_1 <- MAPE(fitted(model_1), model_1$model$AQI)
+mape_1
+mape_2 <- MAPE(fitted(model_2), model_2$model$AQI)
+mape_2
+mape_3 <- MAPE(fitted(model_3), model_3$model$AQI)
+mape_3
+```
+
+## 3. Membandingkan Kinerja Model
+
+```{r}
+# Mengumpulkan nilai Adjusted R-squared dari setiap model
+adj_r_squared_1 <- summary(model_1)$adj.r.squared
+adj_r_squared_2 <- summary(model_2)$adj.r.squared
+adj_r_squared_3 <- summary(model_3)$adj.r.squared
+
+# Tabel perbandingan
+perbandingan <- data.frame(
+Model = c("Model 1: Regresi Sederhana", "Model 2: Distributed Lag", "Model 3: ARDL"), Adjusted_R_Squared = c(adj_r_squared_1, adj_r_squared_2, adj_r_squared_3), MAPE = c(mape_1, mape_2, mape_3)
+)
+
+# Menampilkan tabel perbandingan
+knitr::kable(perbandingan, 
+             caption = "Tabel Perbandingan Kinerja Model",
+             digits = 4,
+             format = "html") %>%
+kable_styling(bootstrap_options = c("striped", "bordered", "hover"), 
+                full_width = FALSE, 
+                position = "center")
+```
+
+## 4. Menentukan Model Terbaik
+
+```{r}
+model_terbaik <- perbandingan[which.max(perbandingan$Adjusted_R_Squared), ]
+model_terbaik
+```
+
+## 5. Kesimpulan dan Interpretasi Hasil
+Berdasarkan analisis yang telah dilakukan untuk memodelkan Air Quality Index (AQI) dengan menggunakan variabel polutan PM25, dapat ditarik kesimpulan yang kuat dan jelas.
+
+Model 3: Autoregressive Distributed Lag (ARDL) secara meyakinkan terbukti sebagai model yang paling unggul dan akurat. Keunggulan ini divalidasi melalui dua metrik evaluasi utama:
+
+Kebaikan Model (Goodness-of-Fit): Model ARDL menunjukkan nilai Adjusted R-squared tertinggi, yaitu 0.8977. Angka ini mengartikan bahwa model tersebut mampu menjelaskan sekitar 89.8% dari total keragaman data AQI. Ini menandakan kecocokan model yang sangat kuat dan superior dibandingkan Model 1 (10.8%) dan Model 2 (42.4%).
+
+Akurasi Prediksi: Dari sisi akurasi, Model ARDL mencatatkan Mean Absolute Percentage Error (MAPE) terendah, yakni hanya 2.94%. Artinya, rata-rata kesalahan prediksi dari model ini kurang dari 3%, yang menunjukkan tingkat akurasi yang sangat tinggi dan dapat diandalkan untuk peramalan.
+
+## Interpretasi
+Kinerja superior dari model ARDL memberikan sebuah wawasan penting: kondisi kualitas udara memiliki sifat persisten atau "momentum".
+
+Artinya, nilai AQI hari ini tidak hanya dipengaruhi oleh tingkat polusi PM25 pada hari yang sama, tetapi juga sangat dipengaruhi oleh nilai AQI dari hari sebelumnya. Dengan kata lain, jika kualitas udara kemarin buruk, ada kecenderungan kuat kualitas udara hari ini juga akan buruk, begitu pula sebaliknya. Faktor autoregressive (L(AQI, 1)) menjadi prediktor yang paling dominan, sehingga penyertaannya dalam model menjadi kunci untuk mendapatkan hasil yang akurat.
