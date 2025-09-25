@@ -1,0 +1,293 @@
+---
+title: "Latihan Pertemuan 4"
+author: "Bagas"
+date: "2025-09-25"
+output:
+  html_document:
+    theme: journal
+    toc: true
+    toc_float: true
+---
+
+# Nomor 1
+## Bangkitkan Model MA(2), Plot Identifikasi, dan Analisis Stasioneritas
+
+```{r}
+# Atur parameter
+set.seed(123) # Untuk reproduktifitas hasil
+n <- 300
+theta1 <- 0.4
+theta2 <- 0.6
+
+# Bangkitkan white noise (e_t)
+# Kita butuh 2 nilai awal tambahan untuk e_{t-1} dan e_{t-2}
+e <- rnorm(n + 2, mean = 0, sd = 1) 
+
+# Siapkan vektor untuk Y_t
+Yt <- numeric(n)
+
+# Lakukan perulangan untuk membangkitkan Y_t
+for (t in 1:n) {
+  # Rumus: Yt = e_t - θ1*e_{t-1} - θ2*e_{t-2}
+  # Indeks e disesuaikan karena e[1] adalah e_{-1}, e[2] adalah e_{0}, dst.
+  Yt[t] <- e[t + 2] - theta1 * e[t + 1] - theta2 * e[t]
+}
+
+
+library(TSA)
+
+# Atur layout plot menjadi 2x2
+par(mfrow = c(2, 2))
+
+# 1. Plot Time Series
+plot(Yt, main = "Plot Time Series MA(2)", ylab = "Yt", type = "l")
+abline(h = mean(Yt), col = "red") # Garis rata-rata
+
+# 2. Plot ACF
+acf(Yt, main = "ACF dari Proses MA(2)")
+
+# 3. Plot PACF
+pacf(Yt, main = "PACF dari Proses MA(2)")
+
+# 4. Plot EACF
+eacf(Yt)
+```
+
+## Scatterplot
+
+```{r}
+# Reset layout plot
+par(mfrow = c(1, 3))
+
+# Yt vs Yt-1
+plot(lag(Yt, -1), Yt, main = "Yt vs Yt-1", xlab="Yt-1")
+
+# Yt vs Yt-2
+plot(lag(Yt, -2), Yt, main = "Yt vs Yt-2", xlab="Yt-2")
+
+# Yt vs Yt-3
+plot(lag(Yt, -3), Yt, main = "Yt vs Yt-3", xlab="Yt-3")
+```
+
+## Autokorelasi
+### Autokorelasi Empiris (dari Data)
+
+```{r}
+acf_values <- acf(Yt, plot = FALSE)
+print(paste("Autokorelasi Empiris Lag 1 (ρ1):", round(acf_values$acf[1], 4)))
+print(paste("Autokorelasi Empiris Lag 2 (ρ2):", round(acf_values$acf[2], 4)))
+print(paste("Autokorelasi Empiris Lag 3 (ρ3):", round(acf_values$acf[3], 4)))
+```
+
+### Autokorelasi Teoretis
+
+```{r}
+rho1_teori <- (-theta1 + theta1 * theta2) / (1 + theta1^2 + theta2^2)
+rho2_teori <- -theta2 / (1 + theta1^2 + theta2^2)
+
+print(paste("Autokorelasi Teoretis Lag 1 (ρ1):", round(rho1_teori, 4)))
+print(paste("Autokorelasi Teoretis Lag 2 (ρ2):", round(rho2_teori, 4)))
+print("Autokorelasi Teoretis Lag 3 (ρ3): 0")
+```
+
+Stasioneritas: Plot deret waktu (Time Series) menunjukkan data berfluktuasi di sekitar rata-rata yang konstan (garis merah) dan tidak menunjukkan adanya tren. Ini adalah ciri visual dari data yang stasioner.
+
+Identifikasi MA(2):
+
+Plot ACF secara jelas terpotong (cuts off) setelah lag ke-2. Ini adalah karakteristik utama dari proses MA(q), di mana q=2.
+
+Plot PACF cenderung meluruh (tails off) setelah lag ke-2. Pola ACF yang 
+cuts off dan PACF yang tails off adalah penanda klasik untuk model MA.
+
+Matriks EACF mengonfirmasi identifikasi ini dengan menunjukkan puncak segitiga berisi nol ('o') yang dimulai pada baris AR=0 dan kolom MA=2. Ini secara spesifik menunjuk ke model 
+ARMA(0,2) atau MA(2).
+
+Perbandingan Autokorelasi (Empiris vs. Teoretis) 🔢
+Perhitungan autokorelasi Anda menunjukkan kecocokan yang sangat baik antara teori dan data hasil bangkitan:
+
+Lag 1: Empiris (-0.1165) vs Teoretis (-0.1053).
+
+Lag 2: Empiris (-0.399) vs Teoretis (-0.3947).
+
+Lag 3: Empiris (0.0473) vs Teoretis (0).
+
+Nilai empiris sangat mendekati nilai teoretisnya. Nilai pada lag 3 juga sangat dekat dengan nol, sesuai dengan teori MA(2) di mana autokorelasi menjadi nol untuk lag > q.
+
+# Nomor 2
+## Bangkitkan Model AR(2)
+
+```{r}
+# Atur parameter
+set.seed(456)
+n <- 300
+phi1 <- 0.5
+phi2 <- 0.2
+
+# Bangkitkan data menggunakan arima.sim
+Yt <- arima.sim(model = list(ar = c(phi1, phi2)), n = n)
+```
+
+## Plot Identifikasi dan Analisis Stasioneritas
+
+```{r}
+# 1. Plot Time Series
+plot(Yt, main = "Plot Time Series AR(2)", ylab = "Yt", type = "l")
+abline(h = mean(Yt), col = "red")
+
+# 2. Plot ACF
+acf(Yt, main = "ACF dari Proses AR(2)")
+
+# 3. Plot PACF
+pacf(Yt, main = "PACF dari Proses AR(2)")
+
+# 4. Plot EACF
+eacf(Yt)
+```
+
+## Scatterplot 
+
+```{r}
+# Reset layout plot
+par(mfrow = c(1, 3))
+
+# Yt vs Yt-1
+plot(lag(Yt, -1), Yt, main = "Yt vs Yt-1", xlab = "Yt-1")
+
+# Yt vs Yt-2
+plot(lag(Yt, -2), Yt, main = "Yt vs Yt-2", xlab = "Yt-2")
+
+# Yt vs Yt-3
+plot(lag(Yt, -3), Yt, main = "Yt vs Yt-3", xlab = "Yt-3")
+```
+
+## Autokorelasi
+### Autokorelasi Empiris (dari Data)
+
+```{r}
+acf_values <- acf(Yt, plot = FALSE)
+print(paste("Autokorelasi Empiris Lag 1 (ρ1):", round(acf_values$acf[1], 4)))
+print(paste("Autokorelasi Empiris Lag 2 (ρ2):", round(acf_values$acf[2], 4)))
+print(paste("Autokorelasi Empiris Lag 3 (ρ3):", round(acf_values$acf[3], 4)))
+```
+
+### Autokorelasi Teoretis
+
+```{r}
+# Hitung nilai teoretis
+rho1_teori <- phi1 / (1 - phi2)
+rho2_teori <- phi1 * rho1_teori + phi2
+rho3_teori <- phi1 * rho2_teori + phi2 * rho1_teori
+
+print(paste("Autokorelasi Teoretis Lag 1 (ρ1):", round(rho1_teori, 4)))
+print(paste("Autokorelasi Teoretis Lag 2 (ρ2):", round(rho2_teori, 4)))
+print(paste("Autokorelasi Teoretis Lag 3 (ρ3):", round(rho3_teori, 4)))
+```
+Stasioneritas: Plot deret waktu (Time Series) menunjukkan data berfluktuasi secara stabil di sekitar rata-rata konstannya (garis merah), tanpa menunjukkan adanya tren naik atau turun. Ini adalah ciri visual dari data yang stasioner.
+
+Identifikasi AR(2):
+
+Plot ACF terlihat meluruh menuju nol (tails off) secara bertahap. Pola ini merupakan karakteristik dari model Autoregressive (AR).
+
+Plot PACF secara jelas terpotong (cuts off) setelah lag ke-2. Terdapat dua spike yang signifikan secara statistik pada lag 1 dan 2, yang merupakan penanda utama untuk model AR(2).
+
+Matriks EACF menunjukkan pola segitiga berisi nol ('o') yang ujungnya berada pada baris AR=2 dan kolom MA=0, yang secara spesifik mengonfirmasi identifikasi model sebagai ARMA(2,0) atau AR(2).
+
+Perbandingan Autokorelasi (Empiris vs. Teoretis)
+Perhitungan autokorelasi menunjukkan kecocokan yang baik antara nilai teoretis (dihitung dari persamaan Yule-Walker) dan nilai empiris (dihitung dari data).
+
+Lag 1: Empiris (0.5577) vs Teoretis (0.625) 
+
+Lag 2: Empiris (0.4913) vs Teoretis (0.5125) 
+
+Lag 3: Empiris (0.3166) vs Teoretis (0.3812) 
+
+Meskipun ada sedikit perbedaan, nilai-nilai empiris cukup mendekati nilai teoretisnya. Perbedaan ini wajar terjadi karena adanya variasi acak (sampling variation) dalam data yang dibangkitkan.
+
+# Nomor 3
+## Bangkitkan Model ARMA(2,2)
+```{r}
+# Atur parameter
+set.seed(789)
+n <- 300
+phi1 <- 0.5
+phi2 <- 0.2
+theta1 <- 0.4
+theta2 <- 0.6
+
+# Bangkitkan data menggunakan arima.sim
+Yt <- arima.sim(model = list(ar = c(phi1, phi2), ma = c(-theta1, -theta2)), n = n)
+```
+
+## Plot Identifikasi dan Analisis Stasioneritas
+
+```{r}
+# 1. Plot Time Series
+plot(Yt, main = "Plot Time Series ARMA(2,2)", ylab = "Yt", type = "l")
+abline(h = mean(Yt), col = "red")
+
+# 2. Plot ACF
+acf(Yt, main = "ACF dari Proses ARMA(2,2)")
+
+# 3. Plot PACF
+pacf(Yt, main = "PACF dari Proses ARMA(2,2)")
+
+# 4. Plot EACF
+eacf(Yt)
+```
+
+## Scatterplot
+
+```{r}
+# Reset layout plot
+par(mfrow = c(1, 3))
+
+# Yt vs Yt-1
+plot(lag(Yt, -1), Yt, main = "Yt vs Yt-1", xlab = "Yt-1")
+
+# Yt vs Yt-2
+plot(lag(Yt, -2), Yt, main = "Yt vs Yt-2", xlab = "Yt-2")
+
+# Yt vs Yt-3
+plot(lag(Yt, -3), Yt, main = "Yt vs Yt-3", xlab = "Yt-3")
+```
+
+## Autokorelasi
+### Autokorelasi Empiris (dari Data)
+
+```{r}
+# Hitung ACF tanpa membuat plot
+acf_values <- acf(Yt, plot = FALSE)
+print(paste("Autokorelasi Empiris Lag 1 (ρ1):", round(acf_values$acf[1], 4)))
+print(paste("Autokorelasi Empiris Lag 2 (ρ2):", round(acf_values$acf[2], 4)))
+print(paste("Autokorelasi Empiris Lag 3 (ρ3):", round(acf_values$acf[3], 4)))
+```
+
+### Autokorelasi Teoretis
+
+```{r}
+# Hitung nilai teoretis menggunakan ARMAacf
+acf_teori <- ARMAacf(ar = c(phi1, phi2), ma = c(-theta1, -theta2), lag.max = 3)
+
+print(paste("Autokorelasi Teoretis Lag 1 (ρ1):", round(acf_teori[2], 4))) # Indeks 2 untuk lag 1
+print(paste("Autokorelasi Teoretis Lag 2 (ρ2):", round(acf_teori[3], 4))) # Indeks 3 untuk lag 2
+print(paste("Autokorelasi Teoretis Lag 3 (ρ3):", round(acf_teori[4], 4))) # Indeks 4 untuk lag 3
+```
+Stasioneritas: Plot deret waktu (Time Series) menunjukkan data berfluktuasi secara stabil di sekitar rata-ratanya (garis merah), tanpa adanya tren. Ini adalah ciri visual dari data yang stasioner. 
+
+Identifikasi ARMA(2,2):
+
+Plot ACF dan PACF: Berbeda dengan model AR atau MA murni, untuk model campuran ARMA, kedua plot (ACF dan PACF) sama-sama meluruh menuju nol (tails off).  Mereka tidak memiliki pola terpotong (cut off) yang jelas, yang merupakan indikasi kuat dari model campuran.
+
+Matriks EACF: Meskipun tidak sejelas pada contoh sebelumnya, matriks EACF menunjukkan pola segitiga berisi nol ('o') yang ujungnya dapat diinterpretasikan berada pada baris AR=2 dan kolom MA=2. Ini adalah alat identifikasi yang paling membantu untuk model campuran dan menunjuk ke ARMA(2,2). 
+
+Perbandingan Autokorelasi (Empiris vs. Teoretis)
+
+Perhitungan autokorelasi menunjukkan kecocokan yang baik antara nilai teoretis dan nilai empiris yang dihitung dari data bangkitan:
+
+Lag 1: Empiris (0.1555) vs Teoretis (0.1479) 
+
+Lag 2: Empiris (-0.2905) vs Teoretis (-0.2239) 
+
+Lag 3: Empiris (-0.1343) vs Teoretis (-0.0824) 
+
+Meskipun ada sedikit perbedaan (yang wajar terjadi karena variasi acak), nilai-nilai empiris secara umum mengikuti pola dan besaran nilai teoretisnya. Ini mengonfirmasi bahwa simulasi data ARMA(2,2) telah berhasil.
