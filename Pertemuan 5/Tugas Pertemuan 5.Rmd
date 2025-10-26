@@ -1,0 +1,118 @@
+---
+title: "Tugas Pertemuan 5"
+author: "Muhammad Bagas Ramadhan G1401231109"
+date: "2025-10-26"
+output:
+  html_document:
+    theme: "darkly"
+    toc: true
+    toc_float: true
+---
+
+# BAGIAN 1: PERSIAPAN
+
+```{r}
+library(ggplot2)  
+library(tsibble, lib.loc = "~/R/libs")  
+library(tseries) 
+library(MASS)     
+library(openxlsx, lib.loc = "~/R/libs")
+
+data_full <- read.xlsx("C:/Users/AKU/Downloads/Data MPDWW.xlsx")
+data_lengkap <- data_full[, 2]
+data_bagas <- data_lengkap[361:540] |> ts()
+```
+
+# BAGIAN 2: ANALISIS STASIONERITAS
+
+```{r}
+# Statistik Deskriptif Dasar
+print(paste("Rata-rata:", mean(data_bagas))) 
+print(paste("Varians:", var(data_bagas))) 
+
+# Plot Time Series
+plot_ts_bagas <- data_bagas |>
+  as_tsibble() |>
+  ggplot(aes(x = index, y = value)) +
+  geom_line() +
+  theme_bw() +
+  xlab("Obs") +
+  ylab("Nilai") +
+  ggtitle("Plot Time Series Data (361-540)")
+
+plot_ts_bagas
+
+# Plot ACF (Autocorrelation Function)
+# Melihat apakah data tidak stasioner dalam rataan
+acf(data_bagas)
+
+# Uji ADF (Augmented Dickey-Fuller)
+# Uji statistik untuk stasioneritas rataan
+tseries::adf.test(data_bagas) 
+
+# Uji Box-Cox
+# Uji statistik untuk stasioneritas ragam
+data_bagas_shifted <- data_bagas
+
+if (min(data_bagas) <= 0) {
+  # Jika ada data non-positif, geser data
+  data_bagas_shifted <- data_bagas - min(data_bagas) + 1
+  "Data digeser karena ada nilai non-positif."
+} else {
+  "Data sudah positif, tidak perlu digeser."
+}
+
+# Membuat variabel index untuk uji Box-Cox
+index_bagas <- seq(1, length(data_bagas_shifted))
+
+# Menjalankan Uji Box-Cox
+bc <- boxcox(data_bagas_shifted ~ index_bagas, lambda = seq(-2, 4, by = 0.01)) 
+
+# Mencari nilai lambda optimum
+lambda_optimum <- bc$x[which.max(bc$y)] 
+paste("Lambda Optimum:", round(lambda_optimum, 3))
+
+# Mencari Selang Kepercayaan (SK) 95% untuk lambda
+ci_lambda <- bc$x[bc$y > max(bc$y) - 0.5 * qchisq(0.95, 1)]
+ci_lower <- min(ci_lambda)
+ci_upper <- max(ci_lambda)
+paste("SK 95% Lambda:", round(ci_lower, 3), "sampai", round(ci_upper, 3))
+```
+
+## 1. Stasioner dalam Rataan (Terbukti)
+
+Data Anda stasioner dalam rataan, ini didukung oleh tiga bukti:
+
+### Uji ADF (Augmented Dickey-Fuller):
+
+Hipotesisnya adalah $H_{0}$: Data tidak stasioner dalam rataan.
+
+Hasil uji Anda menunjukkan p-value = 0.01.
+
+Karena p-value (0.01) lebih kecil dari taraf nyata 5% (0.05), kita Tolak $H_{0}$.
+
+Kesimpulan: Data Anda secara statistik stasioner dalam rataan.
+
+### Plot Time Series (Plot Data Anda):
+
+Jika dilihat dari plot time series Anda, datanya tampak menyebar di sekitar nilai tengahnya (sekitar 373.7). Tidak terlihat adanya pola tren naik atau turun yang jelas. Ini adalah indikasi visual stasioneritas rataan.
+
+### Plot ACF (Plot Autocorrelation):
+
+Plot ACF Anda menunjukkan pola cuts off (terputus) atau tails off (menurun) dengan sangat cepat. Batang korelasinya langsung masuk ke dalam pita biru setelah lag 0.
+
+Ini adalah ciri data stasioner. Jika tidak stasioner, plot ACF akan menurun secara perlahan (tails off slowly), seperti pada contoh postrend di materi (hal 19).
+
+## 2. Stasioner dalam Ragam (Terbukti)
+
+Data Anda juga stasioner dalam ragam, ini didukung oleh dua bukti:
+
+### Uji Box-Cox:
+
+Hasil uji Box-Cox Anda menunjukkan Selang Kepercayaan (SK) 95% untuk $\lambda$ (lambda) adalah [-2 sampai 2.67].
+
+Aturannya adalah: jika selang tersebut memuat nilai 1, maka data stasioner dalam ragam.
+
+Selang Anda [-2, 2.67] jelas memuat nilai 1.
+
+Kesimpulan: Data Anda secara statistik stasioner dalam ragam.Plot Time Series (Plot Data Anda):Secara visual, "lebar pita" atau fluktuasi data Anda terlihat relatif sama (konstan) dari awal hingga akhir Tidak ada bagian yang fluktuasinya tiba-tiba mengecil atau membesar drastis.
