@@ -1,0 +1,165 @@
+---
+title: "Tugas Pertemuan 67"
+author: "Muhammad Bagas Ramadhan G1401231109"
+date: "2025-10-26"
+output:
+  html_document:
+    theme: "darkly"
+    toc: true
+    toc_float: true
+---
+
+# BAGIAN 1: PERSIAPAN
+
+```{r}
+library(ggplot2)  
+library(tsibble, lib.loc = "~/R/libs")  
+library(tseries) 
+library(MASS)     
+library(openxlsx, lib.loc = "~/R/libs")
+
+data_full <- read.xlsx("C:/Users/AKU/Downloads/Data MPDWW.xlsx")
+data_lengkap <- data_full[, 2]
+data_bagas <- data_lengkap[361:540] |> ts()
+```
+
+# BAGIAN 2: ANALISIS STASIONERITAS
+
+```{r}
+# Statistik Deskriptif Dasar
+print(paste("Rata-rata:", mean(data_bagas))) 
+print(paste("Varians:", var(data_bagas))) 
+
+# Plot Time Series
+plot_ts_bagas <- data_bagas |>
+  as_tsibble() |>
+  ggplot(aes(x = index, y = value)) +
+  geom_line() +
+  theme_bw() +
+  xlab("Obs") +
+  ylab("Nilai") +
+  ggtitle("Plot Time Series Data (361-540)")
+
+plot_ts_bagas
+
+# Plot ACF (Autocorrelation Function)
+# Melihat apakah data tidak stasioner dalam rataan
+acf(data_bagas)
+
+# Uji ADF (Augmented Dickey-Fuller)
+# Uji statistik untuk stasioneritas rataan
+tseries::adf.test(data_bagas) 
+
+# Uji Box-Cox
+# Uji statistik untuk stasioneritas ragam
+data_bagas_shifted <- data_bagas
+
+if (min(data_bagas) <= 0) {
+  # Jika ada data non-positif, geser data
+  data_bagas_shifted <- data_bagas - min(data_bagas) + 1
+  "Data digeser karena ada nilai non-positif."
+} else {
+  "Data sudah positif, tidak perlu digeser."
+}
+
+# Membuat variabel index untuk uji Box-Cox
+index_bagas <- seq(1, length(data_bagas_shifted))
+
+# Menjalankan Uji Box-Cox
+bc <- boxcox(data_bagas_shifted ~ index_bagas, lambda = seq(-2, 4, by = 0.01)) 
+
+# Mencari nilai lambda optimum
+lambda_optimum <- bc$x[which.max(bc$y)] 
+paste("Lambda Optimum:", round(lambda_optimum, 3))
+
+# Mencari Selang Kepercayaan (SK) 95% untuk lambda
+ci_lambda <- bc$x[bc$y > max(bc$y) - 0.5 * qchisq(0.95, 1)]
+ci_lower <- min(ci_lambda)
+ci_upper <- max(ci_lambda)
+paste("SK 95% Lambda:", round(ci_lower, 3), "sampai", round(ci_upper, 3))
+```
+
+Data stasioner dalam ragam, namun tidak stasioner dalam rataan.
+
+Temuan ini bertentangan dengan hasil Uji ADF Anda sebelumnya (yang menunjukkan p-value = 0.01 atau stasioner). Dalam analisis time series, ketika plot visual ACF menunjukkan pola tails off yang sangat jelas, ini sering dianggap sebagai bukti non-stasioneritas yang lebih kuat daripada Uji ADF.
+
+Oleh karena itu, kita akan memprioritaskan bukti visual dari plot ACF.
+
+# BAGIAN 3: PENANGANAN
+
+```{r}
+# Melakukan Differencing Orde 1 (d=1)
+data_bagas_diff1 <- diff(data_bagas, differences = 1)
+
+
+# Validasi Hasil Differencing
+# a. Plot Time Series (Data Hasil Differencing)
+ts.plot(data_bagas_diff1, 
+        main = "Plot Time Series Data Bagas (Setelah Differencing d=1)",
+        ylab = "Nilai Differenced")
+
+# b. Plot ACF (Data Hasil Differencing)
+acf(data_bagas_diff1, main = "ACF Data Bagas (Setelah Differencing d=1)")
+
+# c. Uji ADF (Data Hasil Differencing)
+tseries::adf.test(data_bagas_diff1)
+```
+
+## Uji ADF (Secara Statistik):
+
+Uji ADF pada data baru menghasilkan p-value = 0.01 1.
+
+Karena p-value (0.01) < 0.05, kita Tolak $H_0$. Ini membuktikan bahwa data yang telah di-differencing SUDAH STASIONER dalam rataan2.
+
+## Plot Time Series (Secara Visual):
+
+Plot Time Series baru tidak lagi menunjukkan tren naik.
+
+Datanya sekarang terlihat acak dan berfluktuasi di sekitar nilai tengah (nol), yang merupakan ciri data stasioner.
+
+# Model ARIMA
+
+```{r}
+# Menggunakan auto.arima
+library(forecast)
+
+model_otomatis <- auto.arima(data_bagas, trace=TRUE)
+
+model_otomatis
+``` 
+
+# Uji Model Otomatis
+
+```{r}
+library(lmtest)
+
+# Uji signifikansi parameter
+lmtest::coeftest(model_otomatis)
+
+# Uji Diagnostik Sisaan
+Box.test(model_otomatis$residuals, lag=24, type="Ljung-Box")
+
+shapiro.test(model_otomatis$residuals)
+```
+
+Analisis Hasil
+Model yang dipilih oleh auto.arima (ARIMA(3,1,2)) telah GAGAL dalam pengujian. Model ini tidak baik dan tidak bisa kita terima untuk peramalan. karena GAGAL - Uji Signifikansi Parameter, GAGAL - Uji Independensi Sisaan / Ljung-Box, GAGAL - Uji Normalitas Sisaan / Shapiro-Wilk. 
+
+Kesimpulan Model yang disarankan oleh auto.arima DITOLAK.
+
+```{r}
+# plot PACF dari data yang sudah stasioner
+pacf(data_bagas_diff1, main="PACF Data Bagas (Setelah Differencing d=1)")
+```
+
+```{r}
+model_111 <- arima(data_bagas, order = c(1, 1, 1))
+
+lmtest::coeftest(model_111)
+```
+
+Berdasarkan hasil uji ARIMA(1,1,1), kesimpulannya sangat jelas: Model ARIMA(1,1,1) GAGAL TOTAL dan DITOLAK.
+
+Kita tidak bisa menggunakan model ini untuk peramalan.
+
+Kegagalan auto.arima dan kegagalan ARIMA(1,1,1) menunjukkan bahwa model ARIMA sederhana tidak cukup untuk data ini.
